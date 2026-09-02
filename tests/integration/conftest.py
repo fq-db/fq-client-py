@@ -15,6 +15,7 @@ from fq.errors import FQError
 from fq.sync.client import Client
 
 IMAGE = "ghcr.io/fq-db/fq:latest"
+LABEL = "fq-client-py-test"
 
 ADMIN_TOKEN = "admin-token-for-tests"
 RW_TOKEN = "rw-token-for-tests"
@@ -77,6 +78,8 @@ def _start(config: Path) -> tuple[str, str]:
             "run",
             "-d",
             "--rm",
+            "--label",
+            LABEL,
             "-p",
             "127.0.0.1::1945",
             "-e",
@@ -133,6 +136,23 @@ def _stop(container: str) -> None:
     subprocess.run(["docker", "rm", "-f", container], capture_output=True, check=False)
 
 
+def _reap_stale() -> None:
+    """Remove containers left behind by an interrupted run.
+
+    ``--rm`` only fires when a container stops, so a pytest run killed mid-flight
+    leaks a running server holding a port.
+    """
+    listed = subprocess.run(
+        ["docker", "ps", "-aq", "--filter", f"label={LABEL}"],
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+    stale = listed.stdout.split()
+    if stale:
+        subprocess.run(["docker", "rm", "-f", *stale], capture_output=True, check=False)
+
+
 def _instance(tmp_path: Path, name: str) -> Iterator[FQInstance]:
     directory = tmp_path / name
     directory.mkdir(parents=True, exist_ok=True)
@@ -145,6 +165,13 @@ def _instance(tmp_path: Path, name: str) -> Iterator[FQInstance]:
         yield FQInstance(address=address)
     finally:
         _stop(container)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def reap_stale_containers() -> None:
+    """Clear leftovers before the first server starts."""
+    if docker_available():
+        _reap_stale()
 
 
 @pytest.fixture(scope="module")
