@@ -24,7 +24,7 @@ dependencies = []
 
 [project.urls]
 Homepage = "https://github.com/fq-db/fq"
-Source = "https://github.com/rom8726/fq-client-py"
+Source = "https://github.com/fq-db/fq-client-py"
 
 [dependency-groups]
 dev = [
