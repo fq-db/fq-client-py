@@ -60,9 +60,7 @@ async def test_rate_limit_and_quota_commands_round_trip() -> None:
     )
     with FakeServer(handler) as server:
         async with AsyncClient(server.address, pool_size=1, reconnect=FAST) as client:
-            assert await client.rlimit_fixed_window(LIMIT, 100) == RateLimitResult(
-                True, 1, 99, 60
-            )
+            assert await client.rlimit_fixed_window(LIMIT, 100) == RateLimitResult(True, 1, 99, 60)
             assert await client.quota_acquire("plan", 4, "c1") == QuotaAcquireResult(
                 True, 4, 4, 6, 0
             )

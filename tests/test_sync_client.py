@@ -176,8 +176,9 @@ def test_mutating_command_is_not_retried_once_the_request_was_sent() -> None:
         session.close()
 
     with FakeServer(handler) as server:
-        with Client(server.address, pool_size=1, reconnect=FAST) as client, pytest.raises(
-            FQConnectionError
+        with (
+            Client(server.address, pool_size=1, reconnect=FAST) as client,
+            pytest.raises(FQConnectionError),
         ):
             client.incr(KEY)
 
