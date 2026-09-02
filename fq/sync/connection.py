@@ -202,7 +202,10 @@ class Connection:
 
     def _apply_timeout(self, sock: socket.socket, deadline: Deadline) -> None:
         deadline.check()
-        sock.settimeout(deadline.remaining())
+        try:
+            sock.settimeout(deadline.remaining())
+        except OSError as error:
+            raise FQConnectionError(f"connection is unusable: {error}") from error
 
     def _require_socket(self) -> socket.socket:
         if self._sock is None:
