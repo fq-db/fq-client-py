@@ -1,2 +1,2 @@
 # fq-client-py
-Python client for fq database.
+Python client for the fq database.
