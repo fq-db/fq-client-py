@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import ssl
 from collections.abc import AsyncIterator
 
@@ -85,10 +86,8 @@ class AsyncConnection:
             return
 
         writer.close()
-        try:
+        with contextlib.suppress(OSError, asyncio.CancelledError):
             await writer.wait_closed()
-        except (OSError, asyncio.CancelledError):
-            pass
 
     async def send(self, command: Command, deadline: Deadline) -> bytes:
         """Send a command and read one response frame."""
