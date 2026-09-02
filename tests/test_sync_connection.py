@@ -17,6 +17,11 @@ from tests.fake_server import FakeServer, Session, respond
 KEY = CappingKey("k", 60)
 
 
+def drain(connection: Connection, frames: list[bytes | None]) -> None:
+    for frame in connection.open_stream(get(KEY)):
+        frames.append(frame)
+
+
 def open_connection(server: FakeServer, *, token: str | None = None) -> Connection:
     connection = Connection(server.address, token=token)
     connection.connect()
@@ -124,11 +129,10 @@ def test_stream_yields_every_frame() -> None:
 
     with FakeServer(stream_events) as server:
         connection = open_connection(server)
-        frames = []
+        frames: list[bytes | None] = []
 
         with pytest.raises(FQConnectionError):
-            for frame in connection.open_stream(get(KEY)):
-                frames.append(frame)
+            drain(connection, frames)
 
         assert frames == [b"ok|a;60;1;5", b"ok|b;60;2;4"]
         connection.close()
