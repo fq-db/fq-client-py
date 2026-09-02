@@ -56,6 +56,8 @@ class Session:
         return bytes(buffer)
 
 
+_ACCEPT_POLL_INTERVAL = 0.01
+
 Handler = Callable[[Session, bytes], None]
 
 
@@ -94,6 +96,9 @@ class FakeServer:
         self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self._sock.bind(("127.0.0.1", 0))
         self._sock.listen(16)
+        # Closing a listening socket does not wake a thread blocked in accept()
+        # on Linux, which would leave the port bound after stop() returns.
+        self._sock.settimeout(_ACCEPT_POLL_INTERVAL)
 
         host, port = self._sock.getsockname()
         self.address = f"{host}:{port}"
@@ -114,17 +119,36 @@ class FakeServer:
 
     def stop(self) -> None:
         self._running = False
+        if self._accept_thread.is_alive():
+            self._wake_accept()
+            self._accept_thread.join(timeout=2.0)
+
         self._sock.close()
         for thread in self._threads:
             thread.join(timeout=2.0)
+
+    def _wake_accept(self) -> None:
+        """Nudge the accept loop so it sees the stop flag without waiting a tick."""
+        with contextlib.suppress(OSError):
+            host, port = self._sock.getsockname()
+            with socket.create_connection((host, port), timeout=1.0):
+                pass
 
     def _accept_loop(self) -> None:
         while self._running:
             try:
                 client, _ = self._sock.accept()
+            except TimeoutError:
+                continue
             except OSError:
                 return
 
+            if not self._running:
+                client.close()
+
+                return
+
+            client.settimeout(None)
             self.connections += 1
             thread = threading.Thread(target=self._serve, args=(client,), daemon=True)
             self._threads.append(thread)
