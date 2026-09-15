@@ -94,8 +94,24 @@ def test_every_documented_code_is_present() -> None:
         5001,
         5002,
         5003,
+        5004,
+        5005,
         9000,
         9001,
     }
 
     assert {int(code) for code in ErrorCode} == documented
+
+
+@pytest.mark.parametrize(
+    ("code", "member"),
+    [
+        (5004, ErrorCode.UNSUPPORTED_COMPRESSION),
+        (5005, ErrorCode.READ_ONLY_REPLICA),
+    ],
+)
+def test_replication_codes_map_to_instance_state_errors(code: int, member: ErrorCode) -> None:
+    error = protocol_error(code, "boom")
+
+    assert type(error) is InstanceStateError
+    assert error.code == member
