@@ -118,3 +118,14 @@ async def test_out_of_range_shard_index_is_rejected() -> None:
         async with AsyncShardedClient([one.address], pool_size=1, reconnect=FAST) as client:
             with pytest.raises(ShardIndexError):
                 client.shard(3)
+
+
+async def test_incrby_is_routed_by_key() -> None:
+    with FakeServer(respond({b"INCRBY a 60 4": b"ok|5"})) as one, FakeServer(respond({})) as two:
+        async with AsyncShardedClient(
+            [one.address, two.address],
+            sharding_func=by_first_letter,
+            pool_size=1,
+            reconnect=FAST,
+        ) as client:
+            assert await client.incrby(CappingKey("a", 60), 4) == 5

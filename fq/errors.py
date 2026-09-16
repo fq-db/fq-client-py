@@ -32,6 +32,7 @@ class ErrorCode(IntEnum):
     INVALID_RATE_LIMIT_ALGORITHM = 2006
     INVALID_SCAN_COUNT = 2007
     INVALID_SCAN_CURSOR = 2008
+    VALUE_OVERFLOW = 2009
 
     NOT_AUTHENTICATED = 3000
     PERMISSION_DENIED = 3001
@@ -79,6 +80,10 @@ class PoolClosedError(FQError):
 
 class ShardIndexError(FQError):
     """The sharding function returned an out-of-range index."""
+
+
+class ValueOutOfRangeError(FQError, ValueError):
+    """A counter value, limit or amount lies outside what the server accepts."""
 
 
 class ProtocolError(FQError):

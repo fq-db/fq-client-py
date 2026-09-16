@@ -95,6 +95,9 @@ class AsyncShardedClient:
     async def incr(self, key: CappingKey, *, timeout: Timeout = DEFAULT) -> int:
         return await self._by_key(key.key).incr(key, timeout=timeout)
 
+    async def incrby(self, key: CappingKey, value: int, *, timeout: Timeout = DEFAULT) -> int:
+        return await self._by_key(key.key).incrby(key, value, timeout=timeout)
+
     async def get(self, key: CappingKey, *, timeout: Timeout = DEFAULT) -> int:
         return await self._by_key(key.key).get(key, timeout=timeout)
 

@@ -17,6 +17,7 @@ from fq import CappingKey, Client, LimitKey
 
 with Client("127.0.0.1:1945", pool_size=8) as client:
     value = client.incr(CappingKey("user_42", capping=60))
+    total = client.incrby(CappingKey("user_42", capping=60), 5)
     result = client.rlimit_sliding_window(LimitKey("ip_1.2.3.4", window=60), limit=100)
     if not result.allowed:
         raise RuntimeError(f"rate limited, retry after {result.reset_after}s")
@@ -44,6 +45,20 @@ async with aclosing(client.qstream()) as stream:
     async for event in stream:
         print(event.event, event.name)
 ```
+
+## Value range
+
+Counter values, rate limits, quota limits and amounts are 64-bit: the server accepts
+anything from 1 to `fq.MAX_VALUE` (9223372036854775807). A larger or negative value is
+rejected by the client before anything is sent, with `ValueOutOfRangeError`, which is
+also a `ValueError`.
+
+Counters are capped at `MAX_VALUE`. An `incr` or `incrby` that would push a counter past
+it raises `ArgumentError` with `code == ErrorCode.VALUE_OVERFLOW` and leaves the counter
+unchanged.
+
+`INCRBY` and 64-bit values need fq v0.11.0 or newer. Older servers answer `incrby` with
+`RequestError` and accept values only up to 2147483647.
 
 ## Timeouts and reconnection
 
@@ -151,7 +166,8 @@ in `.code`:
 | `InternalError` | 9xxx |
 
 Transport failures raise `FQConnectionError` (`FQTimeoutError` for an expired deadline),
-and a malformed response raises `CorruptedResponseError`.
+a malformed response raises `CorruptedResponseError`, and a value outside the accepted
+range raises `ValueOutOfRangeError` before the request is sent.
 
 ## Tests
 

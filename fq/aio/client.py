@@ -114,6 +114,9 @@ class AsyncClient:
     async def incr(self, key: CappingKey, *, timeout: Timeout = DEFAULT) -> int:
         return await self._execute(commands.incr(key), responses.parse_value, timeout)
 
+    async def incrby(self, key: CappingKey, value: int, *, timeout: Timeout = DEFAULT) -> int:
+        return await self._execute(commands.incrby(key, value), responses.parse_value, timeout)
+
     async def get(self, key: CappingKey, *, timeout: Timeout = DEFAULT) -> int:
         return await self._execute(commands.get(key), responses.parse_value, timeout)
 

@@ -5,8 +5,9 @@ import pytest
 
 from fq._reconnect import ReconnectPolicy
 from fq.aio.client import AsyncClient
-from fq.errors import AuthError, FQConnectionError, PoolClosedError
+from fq.errors import AuthError, FQConnectionError, PoolClosedError, ValueOutOfRangeError
 from fq.types import (
+    MAX_VALUE,
     CappingKey,
     InspectSection,
     LimitEvent,
@@ -167,3 +168,18 @@ async def test_closed_client_refuses_further_commands() -> None:
 
         with pytest.raises(PoolClosedError):
             await client.get(KEY)
+
+
+async def test_incrby_round_trip() -> None:
+    with FakeServer(respond({b"INCRBY k 60 5": b"ok|12"})) as server:
+        async with AsyncClient(server.address, pool_size=1, reconnect=FAST) as client:
+            assert await client.incrby(KEY, 5) == 12
+
+
+async def test_out_of_range_value_is_rejected_before_sending() -> None:
+    with FakeServer(respond({})) as server:
+        async with AsyncClient(server.address, pool_size=1, reconnect=FAST) as client:
+            with pytest.raises(ValueOutOfRangeError):
+                await client.rlimit_fixed_window(LIMIT, MAX_VALUE + 1)
+
+            assert server.requests == [b"HELLO 1"]

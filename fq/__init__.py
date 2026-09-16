@@ -20,11 +20,13 @@ from fq.errors import (
     QuotaError,
     RequestError,
     ShardIndexError,
+    ValueOutOfRangeError,
 )
 from fq.inspect_types import InspectReport
 from fq.sync.client import Client
 from fq.sync.sharded import ShardedClient
 from fq.types import (
+    MAX_VALUE,
     PROTOCOL_VERSION,
     SCAN_CURSOR_INITIAL,
     CappingKey,
@@ -42,6 +44,7 @@ from fq.types import (
 )
 
 __all__ = [
+    "MAX_VALUE",
     "PROTOCOL_VERSION",
     "SCAN_CURSOR_INITIAL",
     "ArgumentError",
@@ -78,5 +81,6 @@ __all__ = [
     "ShardedClient",
     "ShardingFunc",
     "TLSConfig",
+    "ValueOutOfRangeError",
     "fnv1a_shard",
 ]

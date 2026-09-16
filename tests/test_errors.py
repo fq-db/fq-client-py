@@ -79,6 +79,7 @@ def test_every_documented_code_is_present() -> None:
         2006,
         2007,
         2008,
+        2009,
         3000,
         3001,
         3002,
@@ -115,3 +116,10 @@ def test_replication_codes_map_to_instance_state_errors(code: int, member: Error
 
     assert type(error) is InstanceStateError
     assert error.code == member
+
+
+def test_counter_overflow_is_an_argument_error() -> None:
+    error = protocol_error(2009, "counter value overflow")
+
+    assert type(error) is ArgumentError
+    assert error.code == ErrorCode.VALUE_OVERFLOW

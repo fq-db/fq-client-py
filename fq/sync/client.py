@@ -104,6 +104,9 @@ class Client:
     def incr(self, key: CappingKey, *, timeout: Timeout = DEFAULT) -> int:
         return self._execute(commands.incr(key), responses.parse_value, timeout)
 
+    def incrby(self, key: CappingKey, value: int, *, timeout: Timeout = DEFAULT) -> int:
+        return self._execute(commands.incrby(key, value), responses.parse_value, timeout)
+
     def get(self, key: CappingKey, *, timeout: Timeout = DEFAULT) -> int:
         return self._execute(commands.get(key), responses.parse_value, timeout)
 
