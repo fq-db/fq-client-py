@@ -9,10 +9,10 @@ from collections.abc import Iterator
 import pytest
 
 from fq.aio.client import AsyncClient
-from fq.errors import AuthenticationFailedError, AuthError
+from fq.errors import ArgumentError, AuthenticationFailedError, AuthError, ErrorCode
 from fq.sync.client import Client
 from fq.sync.sharded import ShardedClient
-from fq.types import CappingKey, InspectSection, LimitKey
+from fq.types import MAX_VALUE, CappingKey, InspectSection, LimitKey
 from tests.integration.conftest import FQInstance, requires_docker
 
 pytestmark = [pytest.mark.integration, requires_docker]
@@ -196,3 +196,56 @@ def test_sharded_client_spreads_keys(fq_cluster: list[FQInstance]) -> None:
         page = client.scan(100)
 
         assert len(page.keys) == 20
+
+
+def _version(text: str) -> tuple[int, ...]:
+    try:
+        return tuple(int(part) for part in text.lstrip("v").split("-")[0].split("."))
+    except ValueError:
+        return (999,)
+
+
+@pytest.fixture
+def int64_client(client: Client) -> Client:
+    report = client.inspect(InspectSection.SUMMARY)
+    version = report.instance.version if report.instance is not None else ""
+    if _version(version) < (0, 11, 0):
+        pytest.skip(f"fq {version} predates INCRBY and 64-bit values")
+
+    return client
+
+
+def test_incrby_adds_the_value(int64_client: Client) -> None:
+    key = CappingKey("incrby-counter", 60)
+
+    assert int64_client.incrby(key, 5) == 5
+    assert int64_client.incrby(key, 7) == 12
+    assert int64_client.get(key) == 12
+
+
+def test_counter_values_beyond_int32(int64_client: Client) -> None:
+    key = CappingKey("int64-counter", 60)
+    beyond_int32 = 2**31 + 10
+
+    assert int64_client.incrby(key, beyond_int32) == beyond_int32
+    assert int64_client.incr(key) == beyond_int32 + 1
+
+
+def test_counter_overflow_leaves_the_counter_untouched(int64_client: Client) -> None:
+    key = CappingKey("overflow-counter", 60)
+
+    assert int64_client.incrby(key, MAX_VALUE) == MAX_VALUE
+
+    with pytest.raises(ArgumentError) as excinfo:
+        int64_client.incr(key)
+
+    assert excinfo.value.code == ErrorCode.VALUE_OVERFLOW
+    assert int64_client.get(key) == MAX_VALUE
+
+
+def test_quota_limit_beyond_int32(int64_client: Client) -> None:
+    limit = 2**40
+
+    assert int64_client.quota_set("int64-quota", limit) is True
+    assert int64_client.quota_acquire("int64-quota", 2**35, "client-a").acquired is True
+    assert int64_client.quota_info("int64-quota").limit == limit

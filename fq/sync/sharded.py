@@ -88,6 +88,9 @@ class ShardedClient:
     def incr(self, key: CappingKey, *, timeout: Timeout = DEFAULT) -> int:
         return self._by_key(key.key).incr(key, timeout=timeout)
 
+    def incrby(self, key: CappingKey, value: int, *, timeout: Timeout = DEFAULT) -> int:
+        return self._by_key(key.key).incrby(key, value, timeout=timeout)
+
     def get(self, key: CappingKey, *, timeout: Timeout = DEFAULT) -> int:
         return self._by_key(key.key).get(key, timeout=timeout)
 

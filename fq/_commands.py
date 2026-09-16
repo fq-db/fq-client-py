@@ -10,7 +10,15 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from fq.types import PROTOCOL_VERSION, SCAN_CURSOR_INITIAL, CappingKey, InspectSection, LimitKey
+from fq.errors import ValueOutOfRangeError
+from fq.types import (
+    MAX_VALUE,
+    PROTOCOL_VERSION,
+    SCAN_CURSOR_INITIAL,
+    CappingKey,
+    InspectSection,
+    LimitKey,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,6 +41,12 @@ def _mutating(*parts: object) -> Command:
     return Command(_join(*parts), read_only=False)
 
 
+def _check_values(*values: int) -> None:
+    for value in values:
+        if value < 0 or value > MAX_VALUE:
+            raise ValueOutOfRangeError(f"value {value} is outside 0..{MAX_VALUE}")
+
+
 def hello(token: str | None) -> Command:
     if token:
         return _read_only("HELLO", PROTOCOL_VERSION, "AUTH", token)
@@ -42,6 +56,12 @@ def hello(token: str | None) -> Command:
 
 def incr(key: CappingKey) -> Command:
     return _mutating("INCR", key.key, key.capping)
+
+
+def incrby(key: CappingKey, value: int) -> Command:
+    _check_values(value)
+
+    return _mutating("INCRBY", key.key, key.capping, value)
 
 
 def get(key: CappingKey) -> Command:
@@ -65,26 +85,38 @@ def mdelete(keys: Sequence[CappingKey]) -> Command:
 
 
 def rlimit_fixed_window(key: LimitKey, limit: int) -> Command:
+    _check_values(limit)
+
     return _mutating("RLIMIT", "FW", key.key, limit, key.window)
 
 
 def rlimit_sliding_window(key: LimitKey, limit: int) -> Command:
+    _check_values(limit)
+
     return _mutating("RLIMIT", "SW", key.key, limit, key.window)
 
 
 def rlimit_token_bucket(key: LimitKey, capacity: int, refill_amount: int) -> Command:
+    _check_values(capacity, refill_amount)
+
     return _mutating("RLIMIT", "TB", key.key, capacity, refill_amount, key.window)
 
 
 def quota_set(name: str, limit: int) -> Command:
+    _check_values(limit)
+
     return _mutating("QUOTA", "SET", name, limit)
 
 
 def quota_set_n(name: str, limit: int, clients: int) -> Command:
+    _check_values(limit)
+
     return _mutating("QUOTA", "SETN", name, limit, clients)
 
 
 def quota_acquire(name: str, amount: int, client_id: str, ttl: int | None = None) -> Command:
+    _check_values(amount)
+
     parts: list[object] = ["QUOTA", "ACQ", name, amount, client_id]
     if ttl is not None:
         parts.append(ttl)
@@ -107,6 +139,8 @@ def quota_acquire_lease(
     client_id: str,
     ttl: int | None = None,
 ) -> Command:
+    _check_values(limit, amount)
+
     parts: list[object] = ["QUOTA", "ACQL", name, limit, amount, client_id]
     if ttl is not None:
         parts.append(ttl)

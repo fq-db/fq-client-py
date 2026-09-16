@@ -9,6 +9,7 @@ from enum import StrEnum
 PROTOCOL_VERSION = 1
 SCAN_CURSOR_INITIAL = "0"
 DEFAULT_MAX_MESSAGE_SIZE = 4096
+MAX_VALUE = 2**63 - 1
 
 
 @dataclass(frozen=True, slots=True)

@@ -170,3 +170,17 @@ def test_a_failing_shard_aborts_construction_and_closes_the_rest() -> None:
         pytest.raises(FQConnectionError, match="cannot connect"),
     ):
         ShardedClient([one.address, "127.0.0.1:1"], pool_size=1, reconnect=FAST)
+
+
+def test_incrby_is_routed_by_key() -> None:
+    with (
+        FakeServer(respond({b"INCRBY a 60 4": b"ok|5"})) as one,
+        FakeServer(respond({})) as two,
+        ShardedClient(
+            [one.address, two.address],
+            sharding_func=by_first_letter,
+            pool_size=1,
+            reconnect=FAST,
+        ) as client,
+    ):
+        assert client.incrby(CappingKey("a", 60), 4) == 5

@@ -35,3 +35,8 @@ def test_default_sharding_function_is_exported() -> None:
 def test_everything_in_dunder_all_is_importable() -> None:
     for name in fq.__all__:
         assert hasattr(fq, name), name
+
+
+def test_value_range_is_exported() -> None:
+    assert fq.MAX_VALUE == 2**63 - 1
+    assert issubclass(fq.ValueOutOfRangeError, fq.FQError)

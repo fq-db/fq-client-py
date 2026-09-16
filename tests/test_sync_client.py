@@ -3,9 +3,17 @@ import json
 import pytest
 
 from fq._reconnect import Deadline, ReconnectPolicy
-from fq.errors import AuthError, FQConnectionError, PoolClosedError
+from fq.errors import (
+    ArgumentError,
+    AuthError,
+    ErrorCode,
+    FQConnectionError,
+    PoolClosedError,
+    ValueOutOfRangeError,
+)
 from fq.sync.client import Client
 from fq.types import (
+    MAX_VALUE,
     CappingKey,
     InspectSection,
     LimitEvent,
@@ -235,3 +243,26 @@ def test_per_call_timeout_overrides_the_client_default() -> None:
         with pytest.raises(FQConnectionError):
             client.get(KEY, timeout=0.05)
         client.close()
+
+
+def test_incrby_round_trip() -> None:
+    handler = respond({b"INCRBY k 60 5": b"ok|12"})
+    with FakeServer(handler) as server, Client(server.address, pool_size=1) as client:
+        assert client.incrby(KEY, 5) == 12
+
+
+def test_counter_overflow_surfaces_as_an_argument_error() -> None:
+    handler = respond({b"INCRBY k 60 9223372036854775807": b"err|2009|counter value overflow"})
+    with FakeServer(handler) as server, Client(server.address, pool_size=1) as client:
+        with pytest.raises(ArgumentError) as excinfo:
+            client.incrby(KEY, MAX_VALUE)
+
+        assert excinfo.value.code == ErrorCode.VALUE_OVERFLOW
+
+
+def test_out_of_range_value_is_rejected_before_sending() -> None:
+    with FakeServer(respond({})) as server, Client(server.address, pool_size=1) as client:
+        with pytest.raises(ValueOutOfRangeError):
+            client.quota_set("plan", MAX_VALUE + 1)
+
+        assert server.requests == [b"HELLO 1"]

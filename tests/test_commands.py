@@ -1,5 +1,10 @@
+from collections.abc import Callable
+
+import pytest
+
 from fq import _commands as commands
-from fq.types import CappingKey, InspectSection, LimitKey
+from fq.errors import FQError, ValueOutOfRangeError
+from fq.types import MAX_VALUE, CappingKey, InspectSection, LimitKey
 
 
 def test_hello_without_a_token() -> None:
@@ -116,3 +121,56 @@ def test_mutating_commands_are_marked() -> None:
     assert commands.quota_delete("plan").read_only is False
     assert commands.flushdb().read_only is False
     assert commands.truncate().read_only is False
+
+
+def test_incrby_carries_the_value() -> None:
+    command = commands.incrby(CappingKey("user_42", 60), 5)
+
+    assert command.payload == b"INCRBY user_42 60 5"
+    assert command.read_only is False
+
+
+def test_values_up_to_the_64_bit_maximum_are_accepted() -> None:
+    key = LimitKey("k", 60)
+
+    assert commands.incrby(CappingKey("k", 60), MAX_VALUE).payload == (
+        b"INCRBY k 60 9223372036854775807"
+    )
+    assert commands.rlimit_token_bucket(key, MAX_VALUE, MAX_VALUE).payload == (
+        b"RLIMIT TB k 9223372036854775807 9223372036854775807 60"
+    )
+
+
+def test_zero_is_left_for_the_server_to_judge() -> None:
+    assert commands.incrby(CappingKey("k", 60), 0).payload == b"INCRBY k 60 0"
+
+
+VALIDATED: list[Callable[[int], commands.Command]] = [
+    lambda value: commands.incrby(CappingKey("k", 60), value),
+    lambda value: commands.rlimit_fixed_window(LimitKey("k", 60), value),
+    lambda value: commands.rlimit_sliding_window(LimitKey("k", 60), value),
+    lambda value: commands.rlimit_token_bucket(LimitKey("k", 60), value, 1),
+    lambda value: commands.rlimit_token_bucket(LimitKey("k", 60), 1, value),
+    lambda value: commands.quota_set("plan", value),
+    lambda value: commands.quota_set_n("plan", value, 2),
+    lambda value: commands.quota_acquire("plan", value, "c1"),
+    lambda value: commands.quota_acquire_lease("plan", value, 1, "c1"),
+    lambda value: commands.quota_acquire_lease("plan", 1, value, "c1"),
+]
+
+
+@pytest.mark.parametrize("build", VALIDATED)
+def test_values_above_the_maximum_are_rejected(build: Callable[[int], commands.Command]) -> None:
+    with pytest.raises(ValueOutOfRangeError, match="9223372036854775808"):
+        build(MAX_VALUE + 1)
+
+
+@pytest.mark.parametrize("build", VALIDATED)
+def test_negative_values_are_rejected(build: Callable[[int], commands.Command]) -> None:
+    with pytest.raises(ValueOutOfRangeError):
+        build(-1)
+
+
+def test_out_of_range_error_is_both_a_client_and_a_value_error() -> None:
+    assert issubclass(ValueOutOfRangeError, FQError)
+    assert issubclass(ValueOutOfRangeError, ValueError)
